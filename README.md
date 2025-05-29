@@ -1,1 +1,1 @@
-# Template for web-machine (meta)
+# webmachine template for meta.
