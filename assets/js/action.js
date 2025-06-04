@@ -314,7 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // updateDisplayState
                             updateDisplayState();
-                            console.log('Dialogue updated with LLM response.');
 
                         } catch (processingError) {
                             console.error('Error processing LLM response:', processingError);
