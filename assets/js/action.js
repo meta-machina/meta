@@ -89,8 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 5. Initialize localStorage:
-    // If 'platoText' is null, try to populate from static HTML. Otherwise, use existing.
-    let platoTextForInit = localStorage.getItem('platoText');
+    // If 'multilogue' is null, try to populate from static HTML. Otherwise, use existing.
+    let platoTextForInit = localStorage.getItem('multilogue');
     if (platoTextForInit === null) {
         if (initialHtmlFromStatic.trim() !== '') {
             try {
@@ -102,13 +102,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             platoTextForInit = ''; // No static content, initialize as empty
         }
-        localStorage.setItem('platoText', platoTextForInit);
+        localStorage.setItem('multilogue', platoTextForInit);
     }
-    // Now, localStorage.getItem('platoText') is guaranteed to be a string (possibly empty).
+    // Now, localStorage.getItem('multilogue') is guaranteed to be a string (possibly empty).
 
     // 6. Function to update display based on localStorage content
     function updateDisplayState() {
-        const currentPlatoText = localStorage.getItem('platoText');
+        const currentPlatoText = localStorage.getItem('multilogue');
         // If there is some text.
         if (currentPlatoText && currentPlatoText.trim() !== '') {
             try {
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = await fileHandle.getFile();
             const fileContent = await file.text();
 
-            localStorage.setItem('platoText', fileContent);
+            localStorage.setItem('multilogue', fileContent);
             // No need to set textarea.value here, updateDisplayState will handle if we switch to editor
             // OR, if we want to go directly to editor:
             textarea.value = fileContent;
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Read directly from localStorage to ensure consistency,
             // as dialogueWrapper.innerHTML might have formatting quirks.
-            const plainText = localStorage.getItem('platoText') || '';
+            const plainText = localStorage.getItem('multilogue') || '';
             // Or, if conversion from current HTML is preferred:
             // const plainText = platoHtmlToPlatoText(dialogueWrapper.innerHTML);
             textarea.value = plainText;
@@ -190,14 +190,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.ctrlKey && !event.shiftKey && event.key === 'Enter') { // Changed from Shift to Enter as per original request context
             event.preventDefault();
             const newText = textarea.value;
-            localStorage.setItem('platoText', newText);
+            localStorage.setItem('multilogue', newText);
             updateDisplayState(); // Update display, which will show dialogue or button
         }
     });
 
     // 10. Event listener for auto-saving to localStorage on input
     textarea.addEventListener('input', () => {
-        localStorage.setItem('platoText', textarea.value);
+        localStorage.setItem('multilogue', textarea.value);
     });
     // 11. Event listener for saving to file (Ctrl+Shift+Enter) - Always "Save As"
     document.addEventListener('keydown', async (event) => {
@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await writable.close();
 
                 // If file save was successful, then update localStorage
-                localStorage.setItem('platoText', textToSave);
+                localStorage.setItem('multilogue', textToSave);
                 updateDisplayState(); // Refresh the view
 
                 // Optional: alert('Dialogue saved to file!');
@@ -310,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
 
-                            localStorage.setItem('platoText', updatedPlatoText);
+                            localStorage.setItem('multilogue', updatedPlatoText);
 
                             // updateDisplayState
                             updateDisplayState();
