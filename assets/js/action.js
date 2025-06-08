@@ -131,6 +131,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Initial display update
     updateDisplayState();
+    // 0. Helper function to send data to the message broker
+    function sendPlatoTextToBroker(platoText) {
+        const event = new CustomEvent('sendToBroker', {
+            detail: {
+                message: platoText // content.js of the extension expects event.detail.message
+            }
+        });
+        document.dispatchEvent(event);
+        console.log("Page: Dispatched 'sendToBroker' event with PlatoText.");
+    }
     // 7. Event listener for "Choose File" button
     chooseFileButton.addEventListener('click', async () => {
         try {
@@ -146,15 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const fileContent = await file.text();
 
             localStorage.setItem('multilogue', fileContent);
-            // No need to set textarea.value here, updateDisplayState will handle if we switch to editor
-            // OR, if we want to go directly to editor:
-            textarea.value = fileContent;
+            textarea.value = fileContent; // Go directly to editor after loading
             dialogueWrapper.style.display = 'none';
             filePickerContainer.style.display = 'none';
             textarea.style.display = 'block';
             textarea.focus();
-            // If not going directly to editor, just call updateDisplayState()
-            // updateDisplayState();
         } catch (err) {
             if (err.name !== 'AbortError') { // User cancelled picker
                 console.error('Error opening file:', err);
@@ -176,13 +182,13 @@ document.addEventListener('DOMContentLoaded', () => {
             filePickerContainer.style.display = 'none';
             textarea.focus();
         } catch (e) {
-            console.error("Error converting HTML to Plato text for editing:", e);
+            console.error("Error preparing text for editing:", e);
             alert("Could not switch to edit mode due to a content error.");
         }
     });
     // 9. Event listener for saving (Ctrl+Enter) in the textarea
     textarea.addEventListener('keydown', (event) => {
-        if (event.ctrlKey && !event.shiftKey && event.key === 'Enter') { // Changed from Shift to Enter as per original request context
+        if (event.ctrlKey && !event.shiftKey && event.key === 'Enter') {
             event.preventDefault();
             const newText = textarea.value;
             localStorage.setItem('multilogue', newText);
@@ -205,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 // Always prompt "Save As"
                 const fileHandle = await window.showSaveFilePicker({
-                    suggestedName: 'dialogue.txt', // You can customize the suggested name
+                    suggestedName: 'multilogue.txt', // Default name for the file.
                     types: [{
                         description: 'Text Files',
                         accept: {
@@ -225,10 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // If file save was successful, then update localStorage
                 localStorage.setItem('multilogue', textToSave);
+                // --- SEND TO BROKER on file save ---
+                // sendPlatoTextToBroker(textToSave);
+                // --- END SEND TO BROKER ---
                 updateDisplayState(); // Refresh the view
-
-                // Optional: alert('Dialogue saved to file!');
-
             } catch (err) {
                 // Handle errors, e.g., if the user cancels the save dialog
                 if (err.name !== 'AbortError') {
@@ -257,8 +263,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            console.log('Alt+Shift pressed. Preparing to send dialogue to LLM worker...');
-
             try {
                 const cmjMessages = platoHtmlToCmj(htmlContent); // platoHtmlToCmj is global
 
@@ -268,30 +272,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     messages: cmjMessages
                 };
 
-                console.log('Alt+Shift: Launching LLM worker with CMJ messages:', userQueryParameters);
-                const llmWorker = new Worker(machineConfig.work);
+                const llmWorker = new Worker(machineConfig.work); // Ensure window.machineConfig.work is set
 
                 llmWorker.onmessage = function(e) {
-                    console.log('Main thread: Message received from worker:', e.data);
                     if (e.data.type === 'success') {
-                        console.log('Worker task successful. LLM Response:', e.data.data);
-
                         try {
                             const llmResponseData = e.data.data;
-                            if (!llmResponseData || !llmResponseData.content || llmResponseData.content.length === 0) {
-                                console.error('LLM response is missing a message content.');
+                            if (!llmResponseData || !llmResponseData.content || llmResponseData.content.text) {
+                                console.error('LLM response is missing content text.');
                                 alert('Received an empty or invalid response from the LLM.');
                                 return;
                             }
 
-                            // Remove Meta's stop_reason from the message
-                            console.log('Initial llmResponseData:', llmResponseData)
-                            // delete llmResponseData.stop_reason;
-                            // console.log('Final assistantMessagePayload:', assistantMessagePayload)
-
                             const newCmjMessage = {
                                 role: llmResponseData.role,
-                                name: machineConfig.name,
+                                name: machineConfig.name, // Ensure window.machineConfig.name is set
                                 content: llmResponseData.content.text
                             };
 
@@ -307,6 +302,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             localStorage.setItem('multilogue', updatedPlatoText);
+                            // --- SEND TO BROKER after LLM response ---
+                            // sendPlatoTextToBroker(updatedPlatoText);
+                            // --- END SEND TO BROKER ---
 
                             // updateDisplayState
                             updateDisplayState();
@@ -328,7 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 llmWorker.postMessage(userQueryParameters);
-                console.log('Main thread: Worker launched and CMJ messages sent.');
 
             } catch (e) {
                 console.error('Alt+Shift: Failed to process dialogue or communicate with the worker:', e);
@@ -340,43 +337,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('storage', function(event) {
         if (event.key === 'multilogue') {
             // console.log('Page Script: localStorage.platoText changed, calling updateDisplayState.');
-            // Ensure updateDisplayState is accessible here or call the relevant parts directly
-            if (typeof updateDisplayState === 'function') {
-                updateDisplayState();
-            } else {
-                console.warn('Page Script: updateDisplayState function not found globally for storage event.');
-                // Fallback or direct DOM manipulation if needed, though updateDisplayState is preferred
-                const currentPlatoText = localStorage.getItem('multilogue');
-                if (currentPlatoText && currentPlatoText.trim() !== '') {
-                    try {
-                        dialogueWrapper.innerHTML = platoTextToPlatoHtml(currentPlatoText); // Assumes platoTextToPlatoHtml is global
-                        dialogueWrapper.style.display = 'block';
-                        textarea.style.display = 'none';
-                        filePickerContainer.style.display = 'none';
-                        dialogueWrapper.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    } catch (e) {
-                        console.error("Page Script (storage listener): Error rendering Plato text to HTML:", e);
-                        dialogueWrapper.innerHTML = "<p class='dialogue-error'>Error loading content.</p>";
-                    }
-                } else {
-                    dialogueWrapper.style.display = 'none';
-                    textarea.style.display = 'none';
-                    filePickerContainer.style.display = 'flex';
-                    dialogueWrapper.innerHTML = '';
-                    textarea.value = '';
-                }
-            }
+            updateDisplayState();
         }
     });
     // 13. Update display when tab becomes visible again
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            // console.log('Page is now visible, ensuring display is up to date.');
-            if (typeof updateDisplayState === 'function') {
-                updateDisplayState();
-            } else {
-                console.warn('Page Script (visibilitychange): updateDisplayState function not found.');
-            }
+            updateDisplayState();
         }
     });
 });
